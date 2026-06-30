@@ -3,16 +3,13 @@ import pandas as pd
 import sqlalchemy as sa
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Ativa as notificações na tela e componentes extras do Tabulator
 pn.extension('tabulator', notifications=True)
 
-# 1. CONFIGURAÇÃO DO BANCO DE DADOS
 engine = sa.create_engine("sqlite:///doacoes.db")
 Session = sessionmaker(bind=engine)
 session = Session()
 Base = declarative_base()
 
-# Modelos das Tabelas
 class Hemocentro(Base):
     __tablename__ = 'hemocentro'
     cnpj = sa.Column(sa.String, primary_key=True)
@@ -34,20 +31,37 @@ class SolicitacaoSangue(Base):
     status = sa.Column(sa.String, default="Pendente")
 
 Base.metadata.create_all(engine)
-
-
-# 2. CONTROLE DE ESTADO INTERNO (Para Edições)
 cnpj_em_edicao = None
-id_estoque_em_edicao = None  # Variável para controlar a edição do estoque
+id_estoque_em_edicao = None 
 
-
-# 3. ABA 1: GERENCIAMENTO DE INSTITUIÇÃO
+# --- Componentes de Interface (Widgets) ---
 txt_cnpj = pn.widgets.TextInput(name='CNPJ da Instituição')
 txt_nome = pn.widgets.TextInput(name='Nome do Hemocentro')
 txt_cidade = pn.widgets.TextInput(name='Cidade')
 btn_salvar = pn.widgets.Button(name='💾 Cadastrar / Atualizar', button_type='primary')
 
 tabela_instituicoes = pn.widgets.Tabulator(name='Instituições Cadastradas', selectable=True, width=600, height=300)
+
+select_inst_estoque = pn.widgets.Select(name='Selecionar Instituição', options=[])
+select_tipo_estoque = pn.widgets.Select(name='Tipo Sanguíneo', options=['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'])
+int_qtd_estoque = pn.widgets.IntInput(name='Quantidade (ml)', value=0, step=50)
+btn_salvar_estoque = pn.widgets.Button(name='📦 Salvar Estoque', button_type='success', width=280)
+btn_editar_estoque = pn.widgets.Button(name='✏️ Editar Estoque Selecionado', button_type='warning', width=250)
+tabela_estoque = pn.widgets.Tabulator(name='Estoque Atual', width=550, height=300, selectable=True) 
+
+select_inst_solicitacao = pn.widgets.Select(name='Instituição Solicitante', options=[])
+select_tipo_solicitacao = pn.widgets.Select(name='Tipo Sanguíneo Necessário', options=['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'])
+btn_criar_solicitacao = pn.widgets.Button(name='🚨 Criar Solicitação', button_type='danger', width=280)
+btn_atender_solicitacao = pn.widgets.Button(name='✅ Atender Selecionado', button_type='success', width=280)
+tabela_solicitacoes = pn.widgets.Tabulator(name='Pedidos de Sangue', width=550, height=300, selectable=True)
+
+
+# --- Funções de Atualização (Views) ---
+def atualizar_seletores():
+    instituicoes = session.query(Hemocentro).all()
+    opcoes = {i.nome: i.cnpj for i in instituicoes}
+    select_inst_estoque.options = opcoes
+    select_inst_solicitacao.options = opcoes
 
 def atualizar_tabela_instituicoes():
     lista = session.query(Hemocentro).all()
@@ -58,6 +72,28 @@ def atualizar_tabela_instituicoes():
     }
     tabela_instituicoes.value = pd.DataFrame(dados)
 
+def atualizar_tabela_estoque():
+    lista = session.query(Estoque).all()
+    dados = {
+        'ID': [e.id for e in lista],
+        'Instituição (CNPJ)': [str(e.cnpj_instituicao) for e in lista],
+        'Tipo Sanguíneo': [str(e.tipo_sanguineo) for e in lista],
+        'Qtd (ml)': [int(e.quantidade_ml) for e in lista]
+    }
+    tabela_estoque.value = pd.DataFrame(dados)
+
+def atualizar_tabela_solicitacoes():
+    lista = session.query(SolicitacaoSangue).all()
+    dados = {
+        'ID': [s.id for s in lista],
+        'Instituição': [str(s.cnpj_instituicao) for s in lista],
+        'Tipo Requerido': [str(s.tipo_sanguineo) for s in lista],
+        'Status': [str(s.status) for s in lista]
+    }
+    tabela_solicitacoes.value = pd.DataFrame(dados)
+
+
+# --- Funções de Eventos (Callbacks) ---
 def salvar_instituicao(event):
     global cnpj_em_edicao
     if not txt_cnpj.value or not txt_nome.value:
@@ -132,36 +168,6 @@ def remover_instituicao(event):
 btn_preparar_edicao.on_click(preparar_edicao)
 btn_remover.on_click(remover_instituicao)
 
-aba_instituicao = pn.Column(
-    "### Gerenciar Instituições (Hemocentros)",
-    pn.Row(
-        pn.Column(txt_cnpj, txt_nome, txt_cidade, btn_salvar, width=300),
-        pn.Column(tabela_instituicoes, pn.Row(btn_preparar_edicao, btn_remover))
-    )
-)
-
-
-# 4. ABA 2: GERENCIAMENTO DE ESTOQUE (COM FUNÇÃO DE EDIÇÃO)
-select_inst_estoque = pn.widgets.Select(name='Selecionar Instituição', options=[])
-select_tipo_estoque = pn.widgets.Select(name='Tipo Sanguíneo', options=['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'])
-int_qtd_estoque = pn.widgets.IntInput(name='Quantidade (ml)', value=0, step=50)
-btn_salvar_estoque = pn.widgets.Button(name='📦 Salvar Estoque', button_type='success', width=280)
-
-# Botão para preparar a edição do estoque
-btn_editar_estoque = pn.widgets.Button(name='✏️ Editar Estoque Selecionado', button_type='warning', width=250)
-
-tabela_estoque = pn.widgets.Tabulator(name='Estoque Atual', width=550, height=300, selectable=True) # Ativado selectable=True
-
-def atualizar_tabela_estoque():
-    lista = session.query(Estoque).all()
-    dados = {
-        'ID': [e.id for e in lista],
-        'Instituição (CNPJ)': [str(e.cnpj_instituicao) for e in lista],
-        'Tipo Sanguíneo': [str(e.tipo_sanguineo) for e in lista],
-        'Qtd (ml)': [int(e.quantidade_ml) for e in lista]
-    }
-    tabela_estoque.value = pd.DataFrame(dados)
-
 def adicionar_estoque(event):
     global id_estoque_em_edicao
     if not select_inst_estoque.value:
@@ -173,7 +179,6 @@ def adicionar_estoque(event):
         return
 
     if id_estoque_em_edicao:
-        # MODO EDIÇÃO: Atualiza o registro existente diretamente com o novo valor digitado
         item = session.query(Estoque).filter_by(id=id_estoque_em_edicao).first()
         if item:
             item.cnpj_instituicao = select_inst_estoque.value
@@ -181,7 +186,6 @@ def adicionar_estoque(event):
             item.quantidade_ml = int_qtd_estoque.value
             pn.state.notifications.success('Estoque alterado com sucesso!')
     else:
-        # MODO NOVO/ADICIONAR: Soma se já existir aquela combinação
         item = session.query(Estoque).filter_by(cnpj_instituicao=select_inst_estoque.value, tipo_sanguineo=select_tipo_estoque.value).first()
         if item:
             item.quantidade_ml += int_qtd_estoque.value
@@ -209,7 +213,6 @@ def preparar_edicao_estoque(event):
     dados_linha = tabela_estoque.value.iloc[index]
     id_estoque_em_edicao = int(dados_linha['ID'])
     
-    # Preenche os campos para o usuário alterar
     select_inst_estoque.value = str(dados_linha['Instituição (CNPJ)'])
     select_tipo_estoque.value = str(dados_linha['Tipo Sanguíneo'])
     int_qtd_estoque.value = int(dados_linha['Qtd (ml)'])
@@ -218,35 +221,6 @@ def preparar_edicao_estoque(event):
 
 btn_salvar_estoque.on_click(adicionar_estoque)
 btn_editar_estoque.on_click(preparar_edicao_estoque)
-
-aba_estoque = pn.Column(
-    "### Controle de Estoque de Sangue",
-    pn.Row(
-        pn.Column(select_inst_estoque, select_tipo_estoque, int_qtd_estoque, btn_salvar_estoque, width=300),
-        pn.Column(tabela_estoque, btn_editar_estoque)
-    )
-)
-
-
-# 5. ABA 3: SOLICITAÇÕES DE SANGUE (LAYOUT SUPER SEGURO E VISÍVEL)
-select_inst_solicitacao = pn.widgets.Select(name='Instituição Solicitante', options=[])
-select_tipo_solicitacao = pn.widgets.Select(name='Tipo Sanguíneo Necessário', options=['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'])
-btn_criar_solicitacao = pn.widgets.Button(name='🚨 Criar Solicitação', button_type='danger', width=280)
-
-# Botão de Atender bem destacado
-btn_atender_solicitacao = pn.widgets.Button(name='✅ Atender Selecionado', button_type='success', width=280)
-
-tabela_solicitacoes = pn.widgets.Tabulator(name='Pedidos de Sangue', width=550, height=300, selectable=True)
-
-def atualizar_tabela_solicitacoes():
-    lista = session.query(SolicitacaoSangue).all()
-    dados = {
-        'ID': [s.id for s in lista],
-        'Instituição': [str(s.cnpj_instituicao) for s in lista],
-        'Tipo Requerido': [str(s.tipo_sanguineo) for s in lista],
-        'Status': [str(s.status) for s in lista]
-    }
-    tabela_solicitacoes.value = pd.DataFrame(dados)
 
 def criar_solicitacao(event):
     if not select_inst_solicitacao.value:
@@ -303,39 +277,49 @@ def atender_solicitacao(event):
 btn_criar_solicitacao.on_click(criar_solicitacao)
 btn_atender_solicitacao.on_click(atender_solicitacao)
 
-# ALTERAÇÃO CRÍTICA DE LAYOUT: Botões agrupados em uma barra de ferramentas vertical fixa à esquerda
+
+# --- Estrutura de Layout das Abas ---
+aba_instituicao = pn.Column(
+    "### Gerenciar Instituições (Hemocentros)",
+    pn.Row(
+        pn.Column(txt_cnpj, txt_nome, txt_cidade, btn_salvar, width=300),
+        pn.Column(tabela_instituicoes, pn.Row(btn_preparar_edicao, btn_remover))
+    )
+)
+
+aba_estoque = pn.Column(
+    "### Controle de Estoque de Sangue",
+    pn.Row(
+        pn.Column(select_inst_estoque, select_tipo_estoque, int_qtd_estoque, btn_salvar_estoque, width=300),
+        pn.Column(tabela_estoque, btn_editar_estoque)
+    )
+)
+
 aba_solicitacao = pn.Column(
     "### Solicitações de Sangue de Urgência",
     pn.Row(
         pn.Column(
-            select_inst_solicitacao, 
-            select_tipo_solicitacao, 
-            btn_criar_solicitacao, 
-            pn.layout.Divider(), # Linha visual divisória
-            btn_atender_solicitacao, 
+            select_inst_solicitacao,
+            select_tipo_solicitacao,
+            btn_criar_solicitacao,
+            pn.layout.Divider(),
+            btn_atender_solicitacao,
             width=300
         ),
         pn.Column(tabela_solicitacoes)
     )
 )
 
-
-# 6. AUXILIARES E INICIALIZAÇÃO
-def atualizar_seletores():
-    instituicoes = session.query(Hemocentro).all()
-    opcoes = {i.nome: i.cnpj for i in instituicoes}
-    select_inst_estoque.options = opcoes
-    select_inst_solicitacao.options = opcoes
-
-atualizar_tabela_instituicoes()
-atualizar_tabela_estoque()
-atualizar_tabela_solicitacoes()
-atualizar_seletores()
-
 layout = pn.Tabs(
     ('Instituições (CRUD)', aba_instituicao),
     ('Estoque', aba_estoque),
     ('Solicitações', aba_solicitacao)
 )
+
+# --- Inicialização Inicial de Dados ---
+atualizar_tabela_instituicoes()
+atualizar_tabela_estoque()
+atualizar_tabela_solicitacoes()
+atualizar_seletores()
 
 layout.show()
