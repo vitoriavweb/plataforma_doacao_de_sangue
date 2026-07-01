@@ -300,7 +300,7 @@ aba_solicitacao = pn.Column(
         ),
         pn.Column(tabela_solicitacoes)
     )
-
+)
 def atualizar_seletores():
     instituicoes = session.query(Hemocentro).all()
     opcoes = {i.nome: i.cnpj for i in instituicoes}
