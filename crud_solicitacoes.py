@@ -6,10 +6,11 @@ from models import SolicitacaoSangue, Estoque, Hemocentro
 
 id_solicitacao_em_edicao = None
 
-select_inst_solicitacao = pn.widgets.Select(name='Instituição Solicitante', options=[])
+select_inst_solicitacao = pn.widgets.Select(name='Instituição Solicitante', options={})
 select_tipo_solicitacao = pn.widgets.Select(
     name='Tipo Sanguíneo Necessário',
-    options=['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+    options=['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+    value='A+'
 )
 
 btn_criar_solicitacao = pn.widgets.Button(
@@ -90,14 +91,14 @@ def atender_solicitacao(event):
 
     index = selecionado[0]
     dados_linha = tabela_solicitacoes.value.iloc[index]
-    solicitacao_id = int(dados_linha['ID'])
+    solicitacao_id = int(float(dados_linha['ID']))
 
     solicitacao = session.query(SolicitacaoSangue).filter_by(id=solicitacao_id).first()
     if not solicitacao:
         pn.state.notifications.error('Solicitação não encontrada.')
         return
 
-    if solicitacao.status == 'Atendido':
+    if texto(solicitacao.status) == 'Atendido':
         pn.state.notifications.warning('Esta solicitação já foi atendida!')
         return
 
