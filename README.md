@@ -33,7 +33,7 @@ PLATAFORMA_DOACAO_DE_SANGUE/
 <<<<<<< HEAD
 ├── crud_notificações.py    # CRUD de notificações 
 =======
->>>>>>> 6864a8a910e482b2864812f62a6ae9b0001662d9
+
 ```
 
 ---
@@ -42,11 +42,6 @@ PLATAFORMA_DOACAO_DE_SANGUE/
 
 | Membro | Telas |
 |--------|-------|
-<<<<<<< HEAD
 | Vitória | Usuários, Triagem, Agendamentos, campanhas |
 | Tharsyla | Hospitais, Historico, notificações |
-=======
-| Vitória | Usuários, Triagem, Agendamentos |
-| Tharsyla | Hospitais, Campanhas, Historico |
->>>>>>> 6864a8a910e482b2864812f62a6ae9b0001662d9
 | Kemilly | Instituições, Estoque, Solicitações |
