@@ -26,7 +26,10 @@ PLATAFORMA_DOACAO_DE_SANGUE/
 ├── crud_instituicoes.py    # CRUD de instituições parceiras
 ├── crud_solicitacoes.py    # CRUD de solicitações de estoque de sangue
 ├── crud_triagem.py         # CRUD de triagem dos doadores
-├── crud_usuario.py         # CRUD de usuarios 
+├── crud_usuario.py         # CRUD de usuarios
+├── crud_historico.py       # CRUD de historico do doador
+├── crud_hospital.py        # CRUD de hospitais parceiros
+├── crud_campanhas.py       # CRUD de campanhas de doação 
 ```
 
 ---
@@ -36,5 +39,5 @@ PLATAFORMA_DOACAO_DE_SANGUE/
 | Membro | Telas |
 |--------|-------|
 | Vitória | Usuários, Triagem, Agendamentos |
-| Tharsyla |  |
+| Tharsyla | Hospitais, Campanhas, Historico |
 | Kemilly | Instituições, Estoque, Solicitações |
