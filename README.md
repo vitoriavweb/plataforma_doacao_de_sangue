@@ -30,7 +30,6 @@ PLATAFORMA_DOACAO_DE_SANGUE/
 ├── crud_historico.py       # CRUD de historico do doador
 ├── crud_hospital.py        # CRUD de hospitais parceiros
 ├── crud_campanhas.py       # CRUD de campanhas de doação 
-<<<<<<< HEAD
 ├── crud_notificações.py    # CRUD de notificações 
 =======
 
@@ -42,6 +41,6 @@ PLATAFORMA_DOACAO_DE_SANGUE/
 
 | Membro | Telas |
 |--------|-------|
-| Vitória | Usuários, Triagem, Agendamentos, campanhas |
-| Tharsyla | Hospitais, Historico, notificações |
+| Vitória | Usuários, Triagem, Hospitais, campanhas |
+| Tharsyla | Agendamento, Historico, notificações |
 | Kemilly | Instituições, Estoque, Solicitações |
