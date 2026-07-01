@@ -3,7 +3,7 @@ import panel as pn
 import pandas as pd
 
 from db import session
-from models import Campanha
+from models import Campanha, Hemocentro
 
 id_campanha_em_edicao = None
 
@@ -27,21 +27,50 @@ btn_remover_campanha = pn.widgets.Button(name='Remover Selecionado', button_type
 
 
 def texto(valor):
-    return "" if valor is None else str(valor)
+    if valor is None:
+        return ""
+    try:
+        if pd.isna(valor):
+            return ""
+    except Exception:
+        pass
+    s = str(valor).strip()
+    if s.lower() in ("nan", "none", "<na>"):
+        return ""
+    return s
+
+
+def formatar_data(valor):
+    if valor is None:
+        return ""
+    if isinstance(valor, datetime.date):
+        return valor.strftime("%Y-%m-%d")
+    return texto(valor)
+
+
+def atualizar_seletor_instituicoes_campanha():
+    instituicoes = session.query(Hemocentro).all()
+    opcoes = {
+        f"{texto(i.nome)} (CNPJ {texto(i.cnpj)})": i.cnpj
+        for i in instituicoes
+    }
+    select_inst_campanha.options = opcoes
 
 
 def atualizar_tabela_campanhas():
     lista = session.query(Campanha).all()
-    dados = {
+
+    dados = pd.DataFrame({
         'ID': [texto(c.id_campanha) for c in lista],
         'Nome': [texto(c.nome) for c in lista],
-        'Início': [texto(c.data_inicio) for c in lista],
-        'Fim': [texto(c.data_fim) for c in lista],
+        'Início': [formatar_data(c.data_inicio) for c in lista],
+        'Fim': [formatar_data(c.data_fim) for c in lista],
         'Objetivo': [texto(c.objetivo) for c in lista],
         'Descrição': [texto(c.descricao) for c in lista],
         'Instituição (CNPJ)': [texto(c.cnpj_instituicao) for c in lista]
-    }
-    tabela_campanhas.value = pd.DataFrame(dados).fillna("")
+    }).astype(str).replace({"None": "", "nan": "", "NaN": "", "<NA>": ""})
+
+    tabela_campanhas.value = dados
 
 
 def limpar_campos_campanha():
@@ -71,7 +100,15 @@ def salvar_campanha(event, atualizar_seletores=None):
         pn.state.notifications.error('Cadastre uma instituição primeiro!')
         return
 
-    if data_fim and data_inicio and data_fim < data_inicio:
+    if not data_inicio:
+        pn.state.notifications.error('Preencha a data de início!')
+        return
+
+    if not data_fim:
+        pn.state.notifications.error('Preencha a data de fim!')
+        return
+
+    if data_fim < data_inicio:
         pn.state.notifications.error('A data de fim não pode ser anterior à data de início!')
         return
 
@@ -125,7 +162,7 @@ def preparar_edicao_campanha(event):
 
     index = selecionado[0]
     dados_linha = tabela_campanhas.value.iloc[index]
-    id_campanha_em_edicao = int(float(dados_linha['ID']))
+    id_campanha_em_edicao = int(dados_linha['ID'])
 
     campanha = session.query(Campanha).filter_by(id_campanha=id_campanha_em_edicao).first()
     if not campanha:
@@ -133,8 +170,8 @@ def preparar_edicao_campanha(event):
         return
 
     txt_nome_campanha.value = texto(campanha.nome)
-    date_inicio_campanha.value = campanha.data_inicio
-    date_fim_campanha.value = campanha.data_fim
+    date_inicio_campanha.value = campanha.data_inicio or datetime.date.today()
+    date_fim_campanha.value = campanha.data_fim or datetime.date.today()
     txt_objetivo_campanha.value = texto(campanha.objetivo)
     txt_descricao_campanha.value = texto(campanha.descricao)
     select_inst_campanha.value = campanha.cnpj_instituicao
@@ -150,7 +187,7 @@ def remover_campanha(event, atualizar_seletores=None):
 
     index = selecionado[0]
     dados_linha = tabela_campanhas.value.iloc[index]
-    id_alvo = int(float(dados_linha['ID']))
+    id_alvo = int(dados_linha['ID'])
 
     try:
         campanha = session.query(Campanha).filter_by(id_campanha=id_alvo).first()
@@ -174,6 +211,7 @@ def montar_aba(atualizar_seletores=None):
     btn_remover_campanha.on_click(lambda event: remover_campanha(event, atualizar_seletores))
 
     atualizar_tabela_campanhas()
+    atualizar_seletor_instituicoes_campanha()
 
     return pn.Column(
         "### Gerenciar Campanhas",
@@ -188,6 +226,9 @@ def montar_aba(atualizar_seletores=None):
                 btn_salvar_campanha,
                 width=320
             ),
-            pn.Column(tabela_campanhas, pn.Row(btn_editar_campanha, btn_remover_campanha))
+            pn.Column(
+                tabela_campanhas,
+                pn.Row(btn_editar_campanha, btn_remover_campanha)
+            )
         )
     )

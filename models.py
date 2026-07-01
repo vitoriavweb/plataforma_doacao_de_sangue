@@ -43,6 +43,40 @@ class Hemocentro(Base):
     cidade = sa.Column(sa.String)
 
 
+class Estoque(Base):
+    __tablename__ = 'estoque'
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    cnpj_instituicao = sa.Column(sa.String, sa.ForeignKey('hemocentro.cnpj'))
+    tipo_sanguineo = sa.Column(sa.String)
+    quantidade_ml = sa.Column(sa.Integer)
+
+
+class SolicitacaoSangue(Base):
+    __tablename__ = 'solicitacao_sangue'
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    cnpj_instituicao = sa.Column(sa.String, sa.ForeignKey('hemocentro.cnpj'))
+    tipo_sanguineo = sa.Column(sa.String)
+    status = sa.Column(sa.String, default="Pendente")
+
+
+class Historico(Base):
+    __tablename__ = 'historico'
+    id_historico = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    id_agendamento = sa.Column(sa.Integer, sa.ForeignKey('agendamento.id_agendamento'), nullable=False)
+    data_doacao = sa.Column(sa.Date)
+    local = sa.Column(sa.String(150))
+    volume_ml = sa.Column(sa.Integer)
+
+
+class Notificacao(Base):
+    __tablename__ = 'notificacao'
+    id_notificacao = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    id_usuario = sa.Column(sa.Integer, sa.ForeignKey('usuario.id_usuario'), nullable=False)
+    cnpj_instituicao = sa.Column(sa.String, sa.ForeignKey('hemocentro.cnpj'), nullable=True)
+    data_envio = sa.Column(sa.Date)
+    conteudo_mensagem = sa.Column(sa.String(250))
+    tipo_sanguineo_alerta = sa.Column(sa.String(3))
+
 class Hospital(Base):
     __tablename__ = 'hospital'
     id_hospital = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -62,30 +96,4 @@ class Campanha(Base):
     cnpj_instituicao = sa.Column(sa.String, sa.ForeignKey('hemocentro.cnpj'), nullable=False)
 
 
-class HistoricoDoador(Base):
-    __tablename__ = 'historico_doador'
-    id_historico = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    id_usuario = sa.Column(sa.Integer, sa.ForeignKey('usuario.id_usuario'), nullable=False)
-    cnpj_instituicao = sa.Column(sa.String, sa.ForeignKey('hemocentro.cnpj'), nullable=False)
-    local_doacao = sa.Column(sa.String(100), nullable=False, default="")
-    volume_sangue = sa.Column(sa.String(50), nullable=False, default="")
-    data_doacao = sa.Column(sa.Date, nullable=False)
-
-class Estoque(Base):
-    __tablename__ = 'estoque'
-    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    cnpj_instituicao = sa.Column(sa.String, sa.ForeignKey('hemocentro.cnpj'))
-    tipo_sanguineo = sa.Column(sa.String)
-    quantidade_ml = sa.Column(sa.Integer)
-
-
-class SolicitacaoSangue(Base):
-    __tablename__ = 'solicitacao_sangue'
-    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    cnpj_instituicao = sa.Column(sa.String, sa.ForeignKey('hemocentro.cnpj'))
-    tipo_sanguineo = sa.Column(sa.String)
-    status = sa.Column(sa.String, default="Pendente")
-
-
-# Cria as tabelas no banco, caso ainda não existam
 Base.metadata.create_all(engine)

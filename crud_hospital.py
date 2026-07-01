@@ -2,7 +2,7 @@ import panel as pn
 import pandas as pd
 
 from db import session
-from models import Hospital
+from models import Hospital, Hemocentro
 
 id_hospital_em_edicao = None
 
@@ -24,18 +24,40 @@ btn_remover_hospital = pn.widgets.Button(name='Remover Selecionado', button_type
 
 
 def texto(valor):
-    return "" if valor is None else str(valor)
+    if valor is None:
+        return ""
+    try:
+        if pd.isna(valor):
+            return ""
+    except Exception:
+        pass
+
+    s = str(valor).strip()
+    if s.lower() in ("nan", "none", "<na>"):
+        return ""
+    return s
+
+
+def atualizar_seletor_instituicoes_hospital():
+    instituicoes = session.query(Hemocentro).all()
+    opcoes = {
+        f"{texto(i.nome)} (CNPJ {texto(i.cnpj)})": i.cnpj
+        for i in instituicoes
+    }
+    select_inst_hospital.options = opcoes
 
 
 def atualizar_tabela_hospitais():
     lista = session.query(Hospital).all()
-    dados = {
+
+    dados = pd.DataFrame({
         'ID': [texto(h.id_hospital) for h in lista],
         'Nome': [texto(h.nome) for h in lista],
         'CNPJ': [texto(h.cnpj) for h in lista],
         'Instituição (CNPJ)': [texto(h.cnpj_instituicao) for h in lista]
-    }
-    tabela_hospitais.value = pd.DataFrame(dados).fillna("")
+    }).astype(str).replace({"None": "", "nan": "", "NaN": "", "<NA>": ""})
+
+    tabela_hospitais.value = dados
 
 
 def limpar_campos_hospital():
@@ -104,7 +126,7 @@ def preparar_edicao_hospital(event):
 
     index = selecionado[0]
     dados_linha = tabela_hospitais.value.iloc[index]
-    id_hospital_em_edicao = int(float(dados_linha['ID']))
+    id_hospital_em_edicao = int(dados_linha['ID'])
 
     hospital = session.query(Hospital).filter_by(id_hospital=id_hospital_em_edicao).first()
     if not hospital:
@@ -126,7 +148,7 @@ def remover_hospital(event, atualizar_seletores=None):
 
     index = selecionado[0]
     dados_linha = tabela_hospitais.value.iloc[index]
-    id_alvo = int(float(dados_linha['ID']))
+    id_alvo = int(dados_linha['ID'])
 
     try:
         hospital = session.query(Hospital).filter_by(id_hospital=id_alvo).first()
@@ -150,6 +172,7 @@ def montar_aba(atualizar_seletores=None):
     btn_remover_hospital.on_click(lambda event: remover_hospital(event, atualizar_seletores))
 
     atualizar_tabela_hospitais()
+    atualizar_seletor_instituicoes_hospital()
 
     return pn.Column(
         "### Gerenciar Hospitais",
@@ -161,6 +184,9 @@ def montar_aba(atualizar_seletores=None):
                 btn_salvar_hospital,
                 width=300
             ),
-            pn.Column(tabela_hospitais, pn.Row(btn_editar_hospital, btn_remover_hospital))
+            pn.Column(
+                tabela_hospitais,
+                pn.Row(btn_editar_hospital, btn_remover_hospital)
+            )
         )
     )

@@ -9,9 +9,10 @@ import crud_solicitacoes as cs
 import crud_usuario as cu
 import crud_agendamento as ca
 import crud_triagem as ct
-import crud_hospital as ch
-import crud_campanha as cc
 import crud_historico as chi
+import crud_notificacao as cn
+import crud_campanha as cc
+import crud_hospital as ch
 
 pn.extension('tabulator', notifications=True)
 
@@ -22,18 +23,21 @@ def atualizar_seletores_instituicao():
     ce.select_inst_estoque.options = opcoes
     cs.select_inst_solicitacao.options = opcoes
     ca.select_inst_agendamento.options = opcoes
-    ch.select_inst_hospital.options = opcoes
+    cn.select_inst_notificacao.options = opcoes
     cc.select_inst_campanha.options = opcoes
+    ch.select_inst_hospital.options = opcoes
     chi.select_inst_historico.options = opcoes
+
 
 
 def atualizar_seletores_usuario():
     ca.atualizar_seletor_usuarios_agendamento()
-    chi.atualizar_seletor_usuarios_historico()
+    cn.atualizar_seletor_usuarios_notificacao()
 
 
 def atualizar_seletores_agendamento():
     ct.atualizar_seletor_agendamentos_triagem()
+    chi.atualizar_seletor_agendamentos_historico()
 
 
 aba_instituicao = ci.montar_aba(atualizar_seletores_instituicao)
@@ -42,9 +46,11 @@ aba_solicitacao = cs.montar_aba()
 aba_usuario = cu.montar_aba(atualizar_seletores_usuario)
 aba_agendamento = ca.montar_aba(atualizar_seletores_agendamento)
 aba_triagem = ct.montar_aba()
+aba_historico = chi.montar_aba()
+aba_notificacao = cn.montar_aba()
 aba_hospital = ch.montar_aba()
 aba_campanha = cc.montar_aba()
-aba_historico = chi.montar_aba()
+
 
 ci.atualizar_tabela_instituicoes()
 ce.atualizar_tabela_estoque()
@@ -52,9 +58,11 @@ cs.atualizar_tabela_solicitacoes()
 cu.atualizar_tabela_usuarios()
 ca.atualizar_tabela_agendamentos()
 ct.atualizar_tabela_triagens()
+chi.atualizar_tabela_historicos()
+cn.atualizar_tabela_notificacoes()
 ch.atualizar_tabela_hospitais()
 cc.atualizar_tabela_campanhas()
-chi.atualizar_tabela_historico()
+
 
 atualizar_seletores_instituicao()
 atualizar_seletores_usuario()
@@ -67,9 +75,12 @@ layout = pn.Tabs(
     ('Usuários (CRUD)', aba_usuario),
     ('Agendamentos (CRUD)', aba_agendamento),
     ('Triagens (CRUD)', aba_triagem),
+    ('Histórico (CRUD)', aba_historico),
+    ('Notificações (CRUD)', aba_notificacao),
     ('Hospitais (CRUD)', aba_hospital),
-    ('Campanhas (CRUD)', aba_campanha),
-    ('Histórico (CRUD)', aba_historico)
+    ('Campanhas (CRUD)', aba_campanha)
+
 )
+
 
 layout.show()

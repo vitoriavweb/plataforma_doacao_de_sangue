@@ -3,7 +3,7 @@ import panel as pn
 import pandas as pd
 
 from db import session
-from models import Agendamento, Usuario
+from models import Agendamento, Usuario, Hemocentro
 
 id_agendamento_em_edicao = None
 
@@ -32,7 +32,26 @@ btn_remover_agendamento = pn.widgets.Button(name='Remover Selecionado', button_t
 
 
 def texto(valor):
-    return "" if valor is None else str(valor)
+    if valor is None:
+        return ""
+    try:
+        if pd.isna(valor):
+            return ""
+    except Exception:
+        pass
+
+    s = str(valor).strip()
+    if s.lower() in ("nan", "none", "<na>"):
+        return ""
+    return s
+
+
+def formatar_data(valor):
+    if valor is None:
+        return ""
+    if isinstance(valor, datetime.date):
+        return valor.strftime('%Y-%m-%d')
+    return texto(valor)
 
 
 def atualizar_seletor_usuarios_agendamento():
@@ -41,19 +60,27 @@ def atualizar_seletor_usuarios_agendamento():
     select_usuario_agendamento.options = opcoes
 
 
+def atualizar_seletor_instituicoes_agendamento():
+    instituicoes = session.query(Hemocentro).all()
+    opcoes = {f"{texto(i.nome)} (CNPJ {texto(i.cnpj)})": i.cnpj for i in instituicoes}
+    select_inst_agendamento.options = opcoes
+
+
 def atualizar_tabela_agendamentos():
     lista = session.query(Agendamento).all()
-    dados = {
+
+    dados = pd.DataFrame({
         'ID': [texto(a.id_agendamento) for a in lista],
         'Doador (ID)': [texto(a.id_usuario) for a in lista],
         'Instituição (CNPJ)': [texto(a.cnpj_instituicao) for a in lista],
-        'Dia': [texto(a.dia) for a in lista],
+        'Dia': [formatar_data(a.dia) for a in lista],
         'Horário': [texto(a.horario) for a in lista],
         'Local': [texto(a.local_doacao) for a in lista],
         'Status': [texto(a.status) for a in lista],
         'Nº Atendimento': [texto(a.num_atendimento) for a in lista]
-    }
-    tabela_agendamentos.value = pd.DataFrame(dados).fillna("")
+    }).astype(str).replace({"None": "", "nan": "", "NaN": "", "<NA>": ""})
+
+    tabela_agendamentos.value = dados
 
 
 def limpar_campos_agendamento():
@@ -62,13 +89,15 @@ def limpar_campos_agendamento():
     date_dia_agendamento.value = datetime.date.today()
     select_status_agendamento.value = 'Agendado'
     int_num_atendimento.value = 0
+    select_usuario_agendamento.value = None
+    select_inst_agendamento.value = None
 
 
 def salvar_agendamento(event, atualizar_seletores=None):
     global id_agendamento_em_edicao
 
     id_usuario = select_usuario_agendamento.value
-    cnpj = texto(select_inst_agendamento.value).strip()
+    cnpj = select_inst_agendamento.value
     dia = date_dia_agendamento.value
     horario = texto(txt_horario_agendamento.value).strip()
     local = texto(txt_local_agendamento.value).strip()
@@ -83,6 +112,10 @@ def salvar_agendamento(event, atualizar_seletores=None):
         pn.state.notifications.error('Cadastre uma instituição primeiro!')
         return
 
+    if not dia:
+        pn.state.notifications.error('Selecione o dia!')
+        return
+
     if not horario:
         pn.state.notifications.error('Preencha o horário!')
         return
@@ -91,8 +124,8 @@ def salvar_agendamento(event, atualizar_seletores=None):
         pn.state.notifications.error('Preencha o local da doação!')
         return
 
-    if not status:
-        pn.state.notifications.error('Selecione um status!')
+    if status not in ['Agendado', 'Confirmado', 'Realizado', 'Cancelado']:
+        pn.state.notifications.error('Selecione um status válido!')
         return
 
     try:
@@ -147,7 +180,7 @@ def preparar_edicao_agendamento(event):
 
     index = selecionado[0]
     dados_linha = tabela_agendamentos.value.iloc[index]
-    id_agendamento_em_edicao = int(float(dados_linha['ID']))
+    id_agendamento_em_edicao = int(dados_linha['ID'])
 
     agendamento = session.query(Agendamento).filter_by(id_agendamento=id_agendamento_em_edicao).first()
     if not agendamento:
@@ -155,8 +188,8 @@ def preparar_edicao_agendamento(event):
         return
 
     select_usuario_agendamento.value = agendamento.id_usuario
-    select_inst_agendamento.value = texto(agendamento.cnpj_instituicao)
-    date_dia_agendamento.value = agendamento.dia
+    select_inst_agendamento.value = agendamento.cnpj_instituicao
+    date_dia_agendamento.value = agendamento.dia or datetime.date.today()
     txt_horario_agendamento.value = texto(agendamento.horario)
     txt_local_agendamento.value = texto(agendamento.local_doacao)
     select_status_agendamento.value = agendamento.status if agendamento.status in select_status_agendamento.options else 'Agendado'
@@ -173,7 +206,7 @@ def remover_agendamento(event, atualizar_seletores=None):
 
     index = selecionado[0]
     dados_linha = tabela_agendamentos.value.iloc[index]
-    id_alvo = int(float(dados_linha['ID']))
+    id_alvo = int(dados_linha['ID'])
 
     try:
         agendamento = session.query(Agendamento).filter_by(id_agendamento=id_alvo).first()
@@ -197,17 +230,26 @@ def montar_aba(atualizar_seletores=None):
     btn_remover_agendamento.on_click(lambda event: remover_agendamento(event, atualizar_seletores))
 
     atualizar_tabela_agendamentos()
+    atualizar_seletor_usuarios_agendamento()
+    atualizar_seletor_instituicoes_agendamento()
 
     return pn.Column(
         "### Gerenciar Agendamentos",
         pn.Row(
             pn.Column(
-                select_usuario_agendamento, select_inst_agendamento,
-                date_dia_agendamento, txt_horario_agendamento, txt_local_agendamento,
-                select_status_agendamento, int_num_atendimento,
+                select_usuario_agendamento,
+                select_inst_agendamento,
+                date_dia_agendamento,
+                txt_horario_agendamento,
+                txt_local_agendamento,
+                select_status_agendamento,
+                int_num_atendimento,
                 btn_salvar_agendamento,
                 width=320
             ),
-            pn.Column(tabela_agendamentos, pn.Row(btn_editar_agendamento, btn_remover_agendamento))
+            pn.Column(
+                tabela_agendamentos,
+                pn.Row(btn_editar_agendamento, btn_remover_agendamento)
+            )
         )
     )
