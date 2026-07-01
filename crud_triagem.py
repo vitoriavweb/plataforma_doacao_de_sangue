@@ -25,13 +25,24 @@ btn_remover_triagem = pn.widgets.Button(name='Remover Selecionado', button_type=
 
 
 def texto(valor):
-    return "" if valor is None else str(valor)
+    if valor is None:
+        return ""
+    try:
+        if pd.isna(valor):
+            return ""
+    except Exception:
+        pass
+
+    s = str(valor).strip()
+    if s.lower() in ("nan", "none", "<na>"):
+        return ""
+    return s
 
 
 def atualizar_seletor_agendamentos_triagem():
     agendamentos = session.query(Agendamento).all()
     opcoes = {
-        f"ID {a.id_agendamento} - Doador {a.id_usuario} - {texto(a.dia)}": a.id_agendamento
+        f"ID {a.id_agendamento} - Doador {texto(a.id_usuario)} - {texto(a.dia)}": a.id_agendamento
         for a in agendamentos
     }
     select_agendamento_triagem.options = opcoes
@@ -39,15 +50,17 @@ def atualizar_seletor_agendamentos_triagem():
 
 def atualizar_tabela_triagens():
     lista = session.query(Triagem).all()
-    dados = {
+
+    dados = pd.DataFrame({
         'ID': [texto(t.id_triagem) for t in lista],
         'Agendamento (ID)': [texto(t.id_agendamento) for t in lista],
         'Peso (kg)': [texto(t.peso) for t in lista],
         'Pressão': [texto(t.pressao_arterial) for t in lista],
         'Resultado': [texto(t.resultado) for t in lista],
         'Observações': [texto(t.observacoes) for t in lista]
-    }
-    tabela_triagens.value = pd.DataFrame(dados).fillna("")
+    }).astype(str).replace({"None": "", "nan": "", "NaN": "", "<NA>": ""})
+
+    tabela_triagens.value = dados
 
 
 def limpar_campos_triagem():
@@ -55,6 +68,7 @@ def limpar_campos_triagem():
     txt_pressao_triagem.value = ""
     select_resultado_triagem.value = 'Apto'
     txt_obs_triagem.value = ""
+    select_agendamento_triagem.value = None
 
 
 def salvar_triagem(event, atualizar_seletores=None):
@@ -70,11 +84,15 @@ def salvar_triagem(event, atualizar_seletores=None):
         pn.state.notifications.error('Selecione um agendamento primeiro!')
         return
 
+    if peso <= 0:
+        pn.state.notifications.error('Informe um peso válido!')
+        return
+
     if not pressao:
         pn.state.notifications.error('Preencha a pressão arterial!')
         return
 
-    if not resultado:
+    if resultado not in ['Apto', 'Inapto']:
         pn.state.notifications.error('Selecione o resultado!')
         return
 
@@ -126,7 +144,7 @@ def preparar_edicao_triagem(event):
 
     index = selecionado[0]
     dados_linha = tabela_triagens.value.iloc[index]
-    id_triagem_em_edicao = int(float(dados_linha['ID']))
+    id_triagem_em_edicao = int(dados_linha['ID'])
 
     triagem = session.query(Triagem).filter_by(id_triagem=id_triagem_em_edicao).first()
     if not triagem:
@@ -150,7 +168,7 @@ def remover_triagem(event, atualizar_seletores=None):
 
     index = selecionado[0]
     dados_linha = tabela_triagens.value.iloc[index]
-    id_alvo = int(float(dados_linha['ID']))
+    id_alvo = int(dados_linha['ID'])
 
     try:
         triagem = session.query(Triagem).filter_by(id_triagem=id_alvo).first()
@@ -168,23 +186,29 @@ def remover_triagem(event, atualizar_seletores=None):
         pn.state.notifications.error(f'Erro ao remover triagem: {e}')
 
 
-def montar_aba():
-    btn_salvar_triagem.on_click(salvar_triagem)
+def montar_aba(atualizar_seletores=None):
+    btn_salvar_triagem.on_click(lambda event: salvar_triagem(event, atualizar_seletores))
     btn_editar_triagem.on_click(preparar_edicao_triagem)
-    btn_remover_triagem.on_click(remover_triagem)
+    btn_remover_triagem.on_click(lambda event: remover_triagem(event, atualizar_seletores))
 
     atualizar_tabela_triagens()
+    atualizar_seletor_agendamentos_triagem()
 
     return pn.Column(
         "### Gerenciar Triagens",
         pn.Row(
             pn.Column(
                 select_agendamento_triagem,
-                float_peso_triagem, txt_pressao_triagem,
-                select_resultado_triagem, txt_obs_triagem,
+                float_peso_triagem,
+                txt_pressao_triagem,
+                select_resultado_triagem,
+                txt_obs_triagem,
                 btn_salvar_triagem,
                 width=320
             ),
-            pn.Column(tabela_triagens, pn.Row(btn_editar_triagem, btn_remover_triagem))
+            pn.Column(
+                tabela_triagens,
+                pn.Row(btn_editar_triagem, btn_remover_triagem)
+            )
         )
     )

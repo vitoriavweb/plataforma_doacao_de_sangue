@@ -27,23 +27,37 @@ btn_remover_usuario = pn.widgets.Button(name='Remover Selecionado', button_type=
 
 
 def texto(valor):
-    return "" if valor is None else str(valor)
+    if valor is None:
+        return ""
+    try:
+        if pd.isna(valor):
+            return ""
+    except Exception:
+        pass
+    s = str(valor).strip()
+    if s.lower() == "nan" or s.lower() == "none":
+        return ""
+    return s
+
+
+def nome_completo(u):
+    partes = [texto(u.pnome), texto(u.mnome), texto(u.unome)]
+    return " ".join(p for p in partes if p).strip()
 
 
 def atualizar_tabela_usuarios():
     lista = session.query(Usuario).all()
-    dados = {
+
+    dados = pd.DataFrame({
         'ID': [texto(u.id_usuario) for u in lista],
-        'Nome Completo': [
-            f"{texto(u.pnome)} {texto(u.mnome)} {texto(u.unome)}".strip()
-            for u in lista
-        ],
+        'Nome Completo': [nome_completo(u) for u in lista],
         'Sexo': [texto(u.sexo) for u in lista],
         'CPF': [texto(u.cpf) for u in lista],
         'Email': [texto(u.email) for u in lista]
-    }
+    })
 
-    tabela_usuarios.value = pd.DataFrame(dados).fillna("")
+    dados = dados.astype(str).replace({"None": "", "nan": "", "NaN": "", "<NA>": ""})
+    tabela_usuarios.value = dados
 
 
 def limpar_campos_usuario():
@@ -59,12 +73,12 @@ def limpar_campos_usuario():
 def salvar_usuario(event, atualizar_seletores=None):
     global id_usuario_em_edicao
 
-    pnome = texto(txt_pnome.value).strip()
-    mnome = texto(txt_mnome.value).strip()
-    unome = texto(txt_unome.value).strip()
-    sexo = texto(select_sexo.value).strip()
-    cpf = texto(txt_cpf.value).strip()
-    email = texto(txt_email.value).strip()
+    pnome = texto(txt_pnome.value)
+    mnome = texto(txt_mnome.value)
+    unome = texto(txt_unome.value)
+    sexo = texto(select_sexo.value)
+    cpf = texto(txt_cpf.value)
+    email = texto(txt_email.value)
     senha = texto(txt_senha.value)
 
     if not pnome or not unome or not cpf:
@@ -82,29 +96,29 @@ def salvar_usuario(event, atualizar_seletores=None):
     try:
         if id_usuario_em_edicao is not None:
             usuario = session.query(Usuario).filter_by(id_usuario=id_usuario_em_edicao).first()
-            if usuario:
-                cpf_em_uso = session.query(Usuario).filter(
-                    Usuario.cpf == cpf,
-                    Usuario.id_usuario != id_usuario_em_edicao
-                ).first()
-                if cpf_em_uso:
-                    pn.state.notifications.error('Este CPF já está cadastrado para outro usuário!')
-                    return
-
-                usuario.pnome = pnome
-                usuario.mnome = mnome
-                usuario.unome = unome
-                usuario.sexo = sexo
-                usuario.cpf = cpf
-                usuario.email = email or None
-
-                if senha:
-                    usuario.senha_login = senha
-
-                pn.state.notifications.success('Usuário atualizado com sucesso!')
-            else:
+            if not usuario:
                 pn.state.notifications.error('Usuário não encontrado.')
                 return
+
+            cpf_em_uso = session.query(Usuario).filter(
+                Usuario.cpf == cpf,
+                Usuario.id_usuario != id_usuario_em_edicao
+            ).first()
+            if cpf_em_uso:
+                pn.state.notifications.error('Este CPF já está cadastrado para outro usuário!')
+                return
+
+            usuario.pnome = pnome
+            usuario.mnome = mnome
+            usuario.unome = unome
+            usuario.sexo = sexo
+            usuario.cpf = cpf
+            usuario.email = email or None
+
+            if senha:
+                usuario.senha_login = senha
+
+            pn.state.notifications.success('Usuário atualizado com sucesso!')
         else:
             existe = session.query(Usuario).filter_by(cpf=cpf).first()
             if existe:
