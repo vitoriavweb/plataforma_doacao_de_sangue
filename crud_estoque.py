@@ -33,20 +33,31 @@ tabela_estoque = pn.widgets.Tabulator(
 
 
 def texto(v):
-    return "" if v is None else str(v)
+    if v is None:
+        return ""
+    if pd.isna(v):
+        return ""
+    return str(v)
 
 
 def atualizar_tabela_estoque():
     lista = session.query(Estoque).all()
 
-    dados = {
-        'ID': [texto(e.id) for e in lista],
-        'Instituição (CNPJ)': [texto(e.cnpj_instituicao) for e in lista],
-        'Tipo Sanguíneo': [texto(e.tipo_sanguineo) for e in lista],
-        'Qtd (ml)': [texto(e.quantidade_ml) for e in lista]
-    }
+    dados = []
+    for e in lista:
+        dados.append({
+            'ID': e.id,
+            'Instituição (CNPJ)': texto(e.cnpj_instituicao),
+            'Tipo Sanguíneo': texto(e.tipo_sanguineo),
+            'Qtd (ml)': 0 if e.quantidade_ml is None or pd.isna(e.quantidade_ml) else int(e.quantidade_ml)
+        })
 
-    tabela_estoque.value = pd.DataFrame(dados)
+    df = pd.DataFrame(dados)
+
+    if not df.empty:
+        df = df.fillna("")
+
+    tabela_estoque.value = df
 
 
 def adicionar_estoque(event):
@@ -81,7 +92,6 @@ def adicionar_estoque(event):
             item.quantidade_ml = qtd
 
             pn.state.notifications.success('Estoque alterado com sucesso!')
-
         else:
             item = session.query(Estoque).filter_by(
                 cnpj_instituicao=cnpj,
@@ -126,17 +136,22 @@ def preparar_edicao_estoque(event):
     index = selecionado[0]
     dados_linha = tabela_estoque.value.iloc[index]
 
-    id_estoque_em_edicao = int(dados_linha['ID'])
+    id_val = dados_linha.get('ID', None)
+    if id_val is None or pd.isna(id_val):
+        pn.state.notifications.error('ID inválido para edição!')
+        return
 
-    cnpj = texto(dados_linha['Instituição (CNPJ)']).strip()
-    tipo = texto(dados_linha['Tipo Sanguíneo']).strip()
-    qtd = dados_linha['Qtd (ml)']
+    id_estoque_em_edicao = int(id_val)
+
+    cnpj = texto(dados_linha.get('Instituição (CNPJ)', '')).strip()
+    tipo = texto(dados_linha.get('Tipo Sanguíneo', '')).strip()
+    qtd = dados_linha.get('Qtd (ml)', 0)
 
     select_inst_estoque.value = cnpj
     select_tipo_estoque.value = tipo
 
     try:
-        int_qtd_estoque.value = int(float(qtd))
+        int_qtd_estoque.value = 0 if pd.isna(qtd) else int(float(qtd))
     except Exception:
         int_qtd_estoque.value = 0
 
